@@ -15,6 +15,33 @@
 
 const server = require("../src/index");
 
-let app = server(3000, [{path: "dist", alias: "/abc"}, {path: "src"}], () => {
-	console.log("服务启动成功");
-});
+let staticConfig = [
+	{path: "dist", alias: "/abc"},
+	{path: "src"}
+];
+
+
+let proxyConfig = {
+	proxyTable: {
+		'/api': {
+			target: 'http://localhost:8000',
+			changeOrigin: false,
+			logs: true,
+		},
+		'/api/v2': {
+			target: 'http://localhost:8080',
+			changeOrigin: false,
+			logs: true,
+		},
+		"/planb/": {
+			target: "http://192.168.0.103:8090/",
+			changeOrigin: false,
+			logs: false,
+		}
+	}
+};
+
+let app = server(3000, staticConfig, proxyConfig);
+
+// 以根目录启动
+//let app = server(3000);

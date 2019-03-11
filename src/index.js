@@ -15,7 +15,9 @@
 
 const pkg = require("../package");
 const Koa = require('koa');
-const koaStatic = require('./server');
+const staticServer = require('./server');
+const proxyServer = require('./proxy');
+const compress = require("koa-compress");
 const path = require('path');
 const _ = require('lodash');
 
@@ -28,17 +30,8 @@ const mixConfig = (options) => {
 	options.rootDir = options.path || "";
 	options.rootPath = options.alias || "/";
 	return _.assign({}, {
-		notFoundFile: `<!DOCTYPE html>
-					<html lang="en">
-					<head>
-						<meta charset="UTF-8">
-						<title>no such file or directory</title>
-					</head>
-					<body>
-					<h2>404 not found</h2> 
-					<div>fb-server ${pkg.version}</div>
-					</body>
-					</html>`,
+		//notFoundFile: ``,
+		notFoundFile: "src/404.html",
 		maxage: 0,
 		hidden: false,
 		gzip: true,
@@ -47,17 +40,15 @@ const mixConfig = (options) => {
 };
 
 /**
- * 启动服务器
- * @param port
+ * 静态资源服务器
+ * @param app
  * @param options {Object|Array|String}
  * path {String} 映射路径
  * alias {String} 虚拟目录，默认 "/"
  * notFoundFile {String} 404
- * @param callback
  * @returns {*}
  */
-const init = (port, options, callback) => {
-	const app = new Koa();
+const doStatic = (app, options) => {
 
 	if (_.isPlainObject(options)) {
 		options = [
@@ -71,6 +62,10 @@ const init = (port, options, callback) => {
 		];
 	}
 
+	if (!options) {
+		options = [mixConfig({})];
+	}
+
 	_.isArray(options) && options.forEach((config) => {
 		if (_.isString(config)) {
 			config = mixConfig({
@@ -80,18 +75,110 @@ const init = (port, options, callback) => {
 		if (_.isPlainObject(config)) {
 			config = mixConfig(config);
 		}
-		//let _path = path.resolve(__dirname, config.path);
-		app.use(koaStatic(config));
-		console.log(`加载服务器配置: ${JSON.stringify(config)}`);
+		app.use(staticServer(config));
+		console.log(`加载静态资源服务器配置: ${JSON.stringify(config)}`);
 	});
 
-	app.listen(port, () => {
-		console.log(`启动成功, 监听端口 http://localhost:${port}/`);
-		callback && typeof callback === "function" && callback.apply(this, Array.prototype.slice.call(arguments));
-	});
 
 	return app;
 
 };
 
-module.exports = init;
+const doProxy = (app, proxyOptions) => {
+
+	let defaults = {
+		healthCheck: true,
+		fallback: true,
+		fallbackOption: {},
+		compress: {
+			filter(content_type) {
+				return /text|javascript|html|css/i.test(content_type);
+			},
+			threshold: 2048,
+			flush: require("zlib").Z_SYNC_FLUSH
+		}
+	};
+
+	proxyOptions = _.assign({}, defaults, proxyOptions);
+	
+	if (_.isUndefined(proxyOptions.compress)) {
+		proxyOptions.compress = true;
+	}
+	if (proxyOptions.compress === true) {
+		app.use(compress(this.option.compress));
+	}
+
+	// 代理
+	if (proxyOptions.proxyTable) {
+		setProxy(app, proxyOptions.proxyTable);
+	}
+
+	// url重写
+	if (proxyOptions.fallback) {
+		const opt = _.assign({verbose: false}, proxyOptions.fallbackOption);
+		app.use(doRewrite(opt));
+	}
+
+
+	// 健康检查
+	if (proxyOptions.healthCheck) {
+		app.use(function (ctx, next) {
+			if (!["/health", "/healthcheck"].includes(ctx.req.url.toLowerCase()))
+				return next();
+			ctx.status = 200;
+			ctx.body = "server aliving";
+		});
+	}
+
+	//app.use(proxyServer(proxyOptions));
+};
+
+const doRewrite = (options) => {
+	const middleware = require('connect-history-api-fallback')(options);
+	const noop = function () {
+	};
+	return (ctx, next) => {
+		middleware(ctx, null, noop);
+		return next();
+	};
+};
+
+
+// 设置代理
+function setProxy(app, proxyTable) {
+	if (typeof proxyTable !== "object")
+		throw new Error("proxyTable 必须是 object");
+	_.keys(proxyTable).forEach(item => {
+		let options = proxyTable[item];
+		if (typeof options === "string") {
+			options = {
+				target: options,
+				changeOrigin: true,
+				logs: true
+			};
+		}
+
+		console.log(`加载代理服务器配置: ${JSON.stringify(options)}`);
+		// 应用代理中间件
+		app.use(proxyServer.proxy(item, options));
+	});
+}
+
+const doStart = (port = 8001, staticOptions, proxyOptions) => {
+	const app = new Koa();
+
+	doProxy(app, proxyOptions);
+
+	doStatic(app, staticOptions);
+
+
+
+	app.listen(port, () => {
+		console.log(`启动成功, 监听端口 http://localhost:${port}/`);
+	});
+
+	return app;
+};
+
+
+module.exports = doStart;
