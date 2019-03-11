@@ -1,0 +1,23 @@
+{
+  "name": "fb-server",
+  "version": "1.0.1",
+  "description": "",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node ./test/test.js",
+    "debug": "node ./test/test.js --inspect"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "koa": "^2.7.0",
+    "koa-send": "^5.0.0",
+    "upath": "^1.0.2",
+    "lodash": "^4.17.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lincong1987/fb-server.git"
+  },
+  "dependencies": {}
+}

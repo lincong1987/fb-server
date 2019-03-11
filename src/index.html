@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Title</title>
+</head>
+<body>
+<h2>hello, fb-server!</h2>
+
+<p>当前文件 src/index.html</p>
+
+
+
+
+<pre>
+	1. install
+
+	npm i fb-server
+
+	2. use
+
+	const server = require("fb-server");
+
+	let app = server(3000, [{path: "dist", alias: "/abc"}, {path: "src"}], () => {
+		console.log("服务启动成功");
+	});
+</pre>
+
+</body>
+</html>
