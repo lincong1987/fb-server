@@ -80,7 +80,7 @@ const doStatic = (app, options) => {
 	});
 
 
-	return app;
+
 
 };
 
@@ -88,11 +88,9 @@ const doProxy = (app, proxyOptions) => {
 
 	let defaults = {
 		healthCheck: true,
-		fallback: true,
-		fallbackOption: {},
 		compress: {
 			filter(content_type) {
-				return /text|javascript|html|css/i.test(content_type);
+				return /text|javascript|html|css|svg/i.test(content_type);
 			},
 			threshold: 2048,
 			flush: require("zlib").Z_SYNC_FLUSH
@@ -100,7 +98,7 @@ const doProxy = (app, proxyOptions) => {
 	};
 
 	proxyOptions = _.assign({}, defaults, proxyOptions);
-	
+
 	if (_.isUndefined(proxyOptions.compress)) {
 		proxyOptions.compress = true;
 	}
@@ -113,16 +111,18 @@ const doProxy = (app, proxyOptions) => {
 		setProxy(app, proxyOptions.proxyTable);
 	}
 
-	// url重写
-	if (proxyOptions.fallback) {
-		const opt = _.assign({verbose: false}, proxyOptions.fallbackOption);
-		app.use(doRewrite(opt));
-	}
 
+
+
+
+
+	console.log(proxyOptions.healthCheck)
 
 	// 健康检查
-	if (proxyOptions.healthCheck) {
+	if (proxyOptions.healthCheck1) {
+
 		app.use(function (ctx, next) {
+
 			if (!["/health", "/healthcheck"].includes(ctx.req.url.toLowerCase()))
 				return next();
 			ctx.status = 200;
@@ -133,14 +133,24 @@ const doProxy = (app, proxyOptions) => {
 	//app.use(proxyServer(proxyOptions));
 };
 
-const doRewrite = (options) => {
-	const middleware = require('connect-history-api-fallback')(options);
+const doRewrite = (app, rules) => {
+
+	const rewrite = require('koa-rewrite');
+	//const middleware = require('connect-history-api-fallback')(options);
 	const noop = function () {
 	};
-	return (ctx, next) => {
-		middleware(ctx, null, noop);
-		return next();
-	};
+	rules = rules || [];
+	_.each(rules, (v, k) => {
+		console.log(`URL重写规则 ${k} to ${v}`);
+		app.use(rewrite(k, v));
+	});
+
+
+	// url重写
+	// return (ctx, next) => {
+	// 	middleware(ctx, null, noop);
+	// 	return next();
+	// };
 };
 
 
@@ -164,13 +174,15 @@ function setProxy(app, proxyTable) {
 	});
 }
 
-const doStart = (port = 8001, staticOptions, proxyOptions) => {
+const doStart = (port = 8001, staticOptions, proxyOptions, rewritesOptions) => {
 	const app = new Koa();
 
 	doProxy(app, proxyOptions);
 
-	doStatic(app, staticOptions);
 
+	doRewrite(app, rewritesOptions);
+
+	doStatic(app, staticOptions);
 
 
 	app.listen(port, () => {

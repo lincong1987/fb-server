@@ -41,7 +41,15 @@ let proxyConfig = {
 	}
 };
 
-let app = server(3000, staticConfig, proxyConfig);
+let rewritesOptions = {
+
+	"/js/(.*)": "/test/js/$1",
+	"/css/(.*)": "/public/assets/css/$1",
+
+};
+
+
+let app = server(3000, staticConfig, proxyConfig, rewritesOptions);
 
 // 以根目录启动
 //let app = server(3000);
